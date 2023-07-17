@@ -1,0 +1,9 @@
+requests
+boto3
+botocore
+certifi
+six
+urllib3
+idna
+PyJWT
+pylint
