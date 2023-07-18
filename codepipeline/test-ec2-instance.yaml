@@ -1,0 +1,163 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Creates an Amazon EC2 instance with tags in a new VPC and subnet, and a route table that points to an internet gateway"
+Metadata:
+  cfn-lint:
+    config:
+      ignore_checks:
+        - E9008
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "EC2 Tags used by State Manager"
+        Parameters:
+          - UptycsAgentTargetKey
+          - UptycsAgentTargetValue
+      - Label:
+          default: "EC2 Instance Data"
+        Parameters:
+          - InstanceType
+          - LatestAmiId
+      - Label:
+          default: "VPC Data"
+        Parameters:
+          - VpcCidrBlock
+          - SubnetCidrBlock
+    ParameterLabels:
+      UptycsAgentTargetKey:
+        default: "The Tag Key Name used to Target instances"
+      UptycsAgentTargetValue:
+        default: "The Tag Key Value used to Target instances"
+      InstanceType:
+        default:  Select the instance size
+      LatestAmiId:
+        default: Select the SSM parameter group for the type of instance
+      VpcCidrBlock:
+        default: VPC setup
+      SubnetCidrBlock:
+        default: Subnet setup
+
+Parameters:
+  UptycsAgentTargetKey:
+    Description: Value of the Tag Key used to define state manager target
+    Default: "SENSOR_DEPLOY"
+    Type: String
+  UptycsAgentTargetValue:
+    Description: Value of the Tag Value used to define state manager target
+    Default: "TRUE"
+    Type: String
+  InstanceType:
+    Type: String
+    Default: t2.micro
+    Description: EC2 instance type
+  VpcCidrBlock:
+    Type: String
+    Default: 10.0.0.0/16
+    Description: CIDR block for the VPC
+  SubnetCidrBlock:
+    Type: String
+    Default: 10.0.1.0/24
+    Description: CIDR block for the subnet
+  LatestAmiId:
+    Description: Currently Amazon Linux2 x86
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
+Resources:
+  VPC:
+    Type: "AWS::EC2::VPC"
+    Properties:
+      CidrBlock: !Ref VpcCidrBlock
+      EnableDnsSupport: "true"
+      EnableDnsHostnames: "true"
+      Tags:
+        - Key: "Name"
+          Value: "Uptycs-Test-VPC"
+  Subnet:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref SubnetCidrBlock
+      Tags:
+        - Key: "Name"
+          Value: "Uptycs-Test-Subnet"
+
+  UptycsSubnetRouteTableAssoc:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId: !Ref RouteTable
+      SubnetId: !Ref Subnet
+
+  InternetGateway:
+    Type: "AWS::EC2::InternetGateway"
+    Properties:
+      Tags:
+        - Key: "Name"
+          Value: "Uptycs-Test-IGW"
+  AttachGateway:
+    Type: "AWS::EC2::VPCGatewayAttachment"
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+  RouteTable:
+    Type: "AWS::EC2::RouteTable"
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: "Name"
+          Value: "Uptycs-Test-RT"
+  Route:
+    Type: "AWS::EC2::Route"
+    DependsOn: "AttachGateway"
+    Properties:
+      RouteTableId: !Ref RouteTable
+      DestinationCidrBlock: "0.0.0.0/0"
+      GatewayId: !Ref InternetGateway
+  InstanceProfile:
+    Type: "AWS::IAM::InstanceProfile"
+    Properties:
+      Path: "/"
+      Roles:
+        - !Ref UptycsTestInstanceRole
+  UptycsTestInstanceRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "ec2.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: "/"
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore"
+  SGAllTrafficFromVPC:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupName: SGAllTrafficFromVPC
+      GroupDescription: VPN Traffic from VPC CIDR
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: '-1'
+          CidrIp: !Ref VpcCidrBlock
+          Description: All Traffic from VPC CIDR
+
+  UptycsTestInstance:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      ImageId: !Ref LatestAmiId
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref InstanceProfile
+      Tags:
+        - Key: !Ref UptycsAgentTargetKey
+          Value: !Ref UptycsAgentTargetValue
+      NetworkInterfaces:
+        - DeleteOnTermination: true
+          Description: Primary network interface
+          DeviceIndex: '0'
+          SubnetId: !Ref Subnet
+          GroupSet:
+            - !Ref SGAllTrafficFromVPC
+          AssociatePublicIpAddress: true

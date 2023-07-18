@@ -49,6 +49,8 @@ Metadata:
           - S3CodeBucketKey
           - S3Prefix
     ParameterLabels:
+      EnabledRegions:
+        default: Add a list of regions if you have set EnableAllRegions to False
       EnableAllRegions:
         default: Set to true to enable or regions or false and specify a region list
       AdministrationRoleArn:

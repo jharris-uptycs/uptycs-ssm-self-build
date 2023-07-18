@@ -1,20 +1,18 @@
 
 # Building Custom Distributor Packages with Uptycs
 <!-- TOC -->
-* [Automating Uptycs Agent Deployment Using AWS Systems Manager](#automating-uptycs-agent-deployment-using-aws-systems-manager)
+* [Building Custom Distributor Packages with Uptycs](#building-custom-distributor-packages-with-uptycs)
   * [Introduction](#introduction)
   * [Prerequisities](#prerequisities)
   * [Implementing the solution](#implementing-the-solution)
     * [Clone this repository](#clone-this-repository)
     * [Create your Uptycs API credential file](#create-your-uptycs-api-credential-file)
-    * [Create your distributor package](#create-your-distributor-package)
-    * [Verify the Contents of the S3 Bucket](#verify-the-contents-of-the-s3-bucket)
+    * [Create the S3 bucket to stage your files](#create-the-s3-bucket-to-stage-your-files)
     * [Deployment](#deployment)
-    * [AWS CLI deployment](#aws-cli-deployment)
     * [AWS Console deployment](#aws-console-deployment)
   * [Verify Setup](#verify-setup)
+    * [Systems Manager Package Creation](#systems-manager-package-creation)
   * [Testing the Solution](#testing-the-solution)
-    * [StackSet Permissions Verification](#stackset-permissions-verification)
     * [Setting up a test Instance](#setting-up-a-test-instance)
 <!-- TOC -->
 
@@ -61,17 +59,16 @@ https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/stacksets-prereqs
 1. Create a local copy of this solution using the git clone command.
 
     ```shell
-    git clone https://github.com/uptycslabs/aws-state-manager-org-cft
+    git clone https://github.com/jharris-uptycs/uptycs-ssm-self-build.git
     
     ```
     
     This will download the required files and directories for the project
     
-| Directory name          | Description                                                                                  |
-|:------------------------|:---------------------------------------------------------------------------------------------|
-| ssm-distributor-sources | Folders representing each supported OS and processor architecture                   |
-| images                  | Images for supporting documentation                                                          |                                                                            |
-| cloudformation          | Cloudformation files required to build the State Manager Association and Distributor package |                                                                            |
+| Directory name               | Description                                                                                  |
+|:-----------------------------|:---------------------------------------------------------------------------------------------|
+| codepipeline                 | Images for supporting documentation                                                          |                                                                            
+| s3bucket                     | Cloudformation files required to build the State Manager Association and Distributor package |                                                                            
 
 ### Create your Uptycs API credential file
 1. Download the API Credentials file from the Uptycs console.  
@@ -84,45 +81,18 @@ Select **Save**
 2. Place the file in the `ssm-distributor` folder.  The credentials are required by the script to 
 download the files from the Uptycs API and place them in the correct folder. 
 
-### Create your distributor package
+### Create the S3 bucket to stage your files
 
-The `create_package.py` script will use information in the `agent_list.json` file to build zip 
-files and a manifest.json file place them in a local s3-bucket folder and then upload them to an S3 bucket in your account.
-
-    > Note: It is possible to create a custom distributor package, 
-
-More information on building a custom package is provided [here](./additional-documents/CUSTOM-PACKAGES.md).
-
-1. Navigate to the `ssm-distributor` folder and execute the `create_package.py` script.
-
-2. Run the create_package.py script 
-    ```shell
-        cd ssm-distributor-sources
-        python3 ./create_package.py -c <my-credentials-file> -b <my-bucket> -r <aws-region>   
-    ```
-   
-    >Note: 
-    **Mandatory Command line Arguments**
-    > 
-    > -c <my-credentials> The path to the credentials file that you downloaded in the previous section
-    > 
-    > **Optional Command line Arguments**
-    > 
-    >-b <my-bucket> The name of the S3 Bucket that you are going to create in your account. 
-    >
-    > -r <aws-region>  The region where the S3 bucket will be created.
-
-    You can monitor the progress in the console.
-    An example output is shown below (truncated output)
-
-![](images/build-package.png)
- 
-### Verify the Contents of the S3 Bucket
-
-1. In your AWS Console navigate to **S3** -> **bucket name** and verify the contents of the bucket
+Create an S3 bucket and upload the contents of the s3bucket folder to the bucket.  Modify the 
+bucket permissions to make the `/templates/Uptycs-State-Manager-aws-org-v3.yaml` public read-only.
 
 
-    <img src='./images/s3-bucket.png' width='400'>
+<img src='./images/s3-bucket-folders.png' width='400'>
+
+
+Set the public read-only permissions
+    
+<img src='./images/template-public.png' width='400'>
 
 
 ### Deployment
@@ -130,43 +100,33 @@ AWS supports console or command line deployment for this solution.
 
 The CloudFormation template takes the following parameters
 
-| Parameter Name                 | Type                | Description                                                                                             | Default Value                |
-|--------------------------------|---------------------|---------------------------------------------------------------------------------------------------------|------------------------------|
-| EnabledRegions                 | CommaDelimitedList | Enter a comma-delimited list of regions where you wish to enable State Manager                          | -                            |
-| EnableAllRegions               | String              | Create and Share Package in all regions                                                                 | -                            |
-| AllowedValues:                 | 'true' or 'false'   |                                                                                                         |                              |
-| ComplianceSeverity             | String              | The Severity to apply to the State Manager Alert                                                       | -                            |
-| AdministrationRoleArn          | String              | Existing Stackset Administration Role Name                                                               | -                            |
-| ExecutionRoleName              | String              | Existing Stackset Execution Role Name                                                                   | -                            |
-| UptycsAgentTargetKey           | String              | Value of the Tag Key used to define the automation target                                                | SENSOR_DEPLOY                |
-| UptycsAgentTargetValue         | String              | Value of the Tag Value used to define the automation target                                              | TRUE                         |
-| UptycsSsmPackageBucketFolder   | String              | Uptycs folder in s3 bucket                                                                              | 'uptycs'                     |
-| UptycsSsmPackageName           | String              | Uptycs Distributor package name                                                                         | 'UptycsAgent'                |
-| UptycsSsmPackageBucket         | String              | SSM Distributor package that installs the Uptycs agent                                                   | -                            |
-| UptycsScheduleRate             | String              | SSM association application cycle (minimum 30 minutes)                                                   | '60 minutes'                 |
-| MaxConcurrency                 | String              | Percentage of total targets that SSM State Manager should run the SSM Automation concurrently           | '100%'                       |
-| MaxErrors                      | String              | Error threshold percentage before                                                                      | '25%'                        |
-| UptycsStateManagerStackSet     | String              | The name of the stackset that will be created                                                            | 'UptycsStateManagerStackSet' |
 
+| Parameter Name            | Description                                                                                                                                               |
+|---------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| UptycsTemplateName        | The name of the Uptycs primary account template                                                                                                           |
+| EnableAllRegions          | Allowed Values true false. Set to true to enable or regions or false and specify a region list in Enabled regions                                        <br/> |
+| EnabledRegions            | Add a list of regions if you have set EnableAllRegions to False.                                                                                          |
+| ComplianceSeverity        | The Severity to apply to the State Manager Alert                                                                                                          |
+| UptycsAgentTargetKey      | Value of the Tag Key used to define the automation target                                                                                                 |
+| UptycsAgentTargetValue    | Value of the Tag Value used to define the automation target                                                                                               |
+| AdministrationRoleArn     | Existing Stackset Administration Role ARN. For example ControlTower uses arn:aws:iam::<accountId>:role/service-role/AWSControlTowerStackSetRole           |
+| ExecutionRoleName         | Existing Stackset Execution Role Name. For example ControlTower uses AWSControlTowerExecution                                                             |
+| UptycsKeysParameterStoreName | Uptycs API Key Parameter Store Name                                                                                                                       |
+| UptycsAPIKey              | Uptycs API Key                                                                                                                                            |
+| UptycsSecret              | Uptycs API Secret                                                                                                                                         |
+| UptycsCustomerId          | Uptycs API CustomerId                                                                                                                                     |
+| UptycsDomain              | Uptycs Domain                                                                                                                                             |
+| RepositoryName            | CodeCommit Repository for Uptycs CloudFormation templates                                                                                                 |
+| RepositoryDescription     | CodeCommit repository description                                                                                                                         |
+| BranchName                | Branch in the CodeCommit Repository for Uptycs CloudFormation templates                                                                                   |
+| UptycsSsmPackageBucket    | Prefix for the S3 Staging Bucket that stages the code copied from code commit                                                                             |
+| S3CodeBucketName          | Name of the S3 bucket with the initial commit of code                                                                                                     |
+| S3Prefix                  | Prefix for file path                                                                                                                                      |
+| S3CodeBucketKey           | Key of the S3 bucket with the initial commit of code                                                                                                      |
 
-
-- [AWS CLI deployment](#aws-cli-deployment)
 - [AWS Console deployment](#aws-console-deployment)
 
-### AWS CLI deployment
-You can deploy this stack using the AWS CLI from this folder using the following command.
-Only required parameters are shown below, additional parameters may be added from the table above as necessary to meet the needs of your environment.
 
-**Example** AWS cli command
-```shell
-aws cloudformation create-stack --stack-name 'Uptycs-State-Manger-Org' \
-  --template-body file://Uptycs-State-Manager-org.yaml \
-  --parameters ParameterKey= AdministrationRoleArn,ParameterValue='AWSCloudFormationStackSetAdministrationRole'  \
-  ParameterKey= AdministrationRoleArn,ParameterValue='AWSCloudFormationStackSetExecutionRole'  \ 
-  ParameterKey=UptycsSsmPackageBucketFolder,ParameterValue='my-bucket-name' \
-  ParameterKey=EnabledRegions,ParameterValue='eu-west-1' \ParameterKey=ComplianceSeverity,ParameterValue='HIGH' \
-  --region 'eu-west-1' --capabilities CAPABILITY_NAMED_IAM
-```
 
 ### AWS Console deployment
 To deploy this stack using the AWS console, follow the procedure below.
@@ -175,15 +135,10 @@ To deploy this stack using the AWS console, follow the procedure below.
 
 
 2. Under **Specify template**, select **Upload a template file** and upload the 
-   `Uptycs-State-Manager-org.yaml` from the cloudformation folder, then click **Next**
-
-   ![Uptycs State Manager CFT Step 1](./images/uptycs-org-stack-step1.png)
+   `uptycs-ssm-codepipeline-build.yml` from the cloudformation folder, then click **Next**
 
 
-3. Provide a **Stack name** and update the **Parameters** section with the StackSet 
-   administration and execution roles described earlier:
-
-   ![Uptycs State Manager CFT Step 2](./images/uptycs-org-stack-step2.png)
+3. Provide a **Stack name** and update the **Parameters**  
 
 
 4. Select the regions where you would like the package deployed.  Either provide a list of 
@@ -191,70 +146,76 @@ To deploy this stack using the AWS console, follow the procedure below.
    and add the region list as required 
    **Next**.
 
-   ![State Manager CFT Step 3](./images/uptycs-org-stack-step3.png)
-
 
 5. Review your selections, and accpet the IAM warning `I acknowledge that AWS CloudFormation might 
    create IAM resources with custom names` check box. After doing so, click the **Create Stack** button.
 
-   ![State Manager CFT Step 4](./images/uptycs-org-stack-step4.png)
-
-
+   
 6. Your stack will now start to deploy.
-   Once completed your should see your original stack and also and an additional stack instance 
+   Once completed you should see your original stack and also and an additional stack instance
    from your stackset if you included this region in your regions list
 
-   ![State Manager CFT Deployment](./images/uptycs-org-stack-status1.png)
+
+<img src='./images/pipeline-stack-status.png' width='600'>
 
 
 ## Verify Setup
 
-1. In your AWS Console, navigate to **Systems Manager** -> **Distributor** -> **Owned by me** 
-   and confirm that the package created successfully.  Confirm that the package has been shared 
-   with other accounts in your org. 
+### Systems Manager Package Creation
 
-![](images/distributor-org-share.png)
-    <img src='images/distributor-org-share.png' width='400'>
+The template creates a CodePipeline project to build a distributor package from the sources 
+previously uploaded to the S3 bucket and then creates a distributor package in one or more regions.
 
 
-3. In your AWS Console, navigate to a member account  **Systems Manager** -> **State 
-   Manager** -> **Shared by me
+<img src='./images/pipeline-status.png' width='600'>
 
-   * State Manager Association
-   
-![](./images/distributor-org-share.png)
 
-    <img src='images/member-accout-package.png' width='400'>
+The template will create the following resourcesIn your AWS Console, navigate to **Systems 
+Manager** -> **Distributor** -> **Owned by me** and confirm that the package created 
+successfully.  Confirm that the package has been shared with other accounts in your org. 
+
+<img src='./images/distributor-package.png' width='600'>
+
+Package details
+
+<img src='./images/distributor-org-share.png' width='400'>
+
+
+In your AWS Console, navigate to a member account  **Systems Manager** -> **State Manager** -> **Shared by me
+
+
+State Manager Association
+
+
+<img src='./images/member-accout-package.png' width='600'>
    
 
 ## Testing the Solution
 
 Existing accounts can be setup by creating a stack instance in the account.   
-Follow the procedure below to perfom an initial setup.
+Follow the procedure below to perform an initial setup.
 
-### StackSet Permissions Verification
-
-Navigate to your AWS Organizations summary **Organizations** -> AWS Accounts
-Copy either an account or OU in the summary page
-
-![](./images/org-account-summary.png)
 
 Navigate to the StackSets Administration page **CloudFormation** -> **StackSets**
 
-![](./images/stackset-summary.png)
+<img src='./images/stackset-summary.png' width='600'>
+
 
 Navigate to **CloudFormation** -> **StackSets** -> **UptycsStateManagerStackSet** -> **StackSet details**
 Select **Add Stacks to StackSet**
 
-![](./images/stackset-details.png)
+<img src='./images/stackset-details.png' width='600'>
+
 
 Enter either the target account or OU you selected from the earlier step
 
-![](./images/stackinstance-details.png)
+<img src='./images/stackinstance-details.png' width='600'>
+
 
 Verify that the Stack instance was created. 
 
-![](./images/stack-instance-details.png)
+<img src='./images/stack-instance-details.png' width='600'>
+
 
 
 ### Setting up a test Instance 
