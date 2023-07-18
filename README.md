@@ -63,11 +63,11 @@ https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/stacksets-prereqs
     
     ```
     
-    This will download the required files and directories for the project
+    Two folders are included that contain files you will require
     
 | Directory name               | Description                                                                                  |
 |:-----------------------------|:---------------------------------------------------------------------------------------------|
-| codepipeline                 | Images for supporting documentation                                                          |                                                                            
+| codepipeline                 | Files required to create the CodePipeline and test the solution                              |                                                                            
 | s3bucket                     | Cloudformation files required to build the State Manager Association and Distributor package |                                                                            
 
 ### Create your Uptycs API credential file
@@ -83,20 +83,37 @@ download the files from the Uptycs API and place them in the correct folder.
 
 ### Create the S3 bucket to stage your files
 
-Create an S3 bucket and upload the contents of the s3bucket folder to the bucket.  Modify the 
-bucket permissions to make the `/templates/Uptycs-State-Manager-aws-org-v3.yaml` public read-only.
+Create an S3 bucket and upload the contents of the s3bucket folder to the bucket.  
 
 
-<img src='./images/s3-bucket-folders.png' width='400'>
+<img src='./images/s3-bucket-folders.png' width='600'>
 
 
-Set the public read-only permissions
+Modify the bucket permissions to make the `/templates/Uptycs-State-Manager-aws-org-v3.yaml`
+public read-only.Set the public read-only permissions
     
-<img src='./images/template-public.png' width='400'>
+<img src='./images/template-public.png' width='600'>
 
 
 ### Deployment
-AWS supports console or command line deployment for this solution.
+
+[AWS Console deployment](#aws-console-deployment)
+
+
+
+
+### AWS Console deployment
+To deploy this stack using the AWS console, follow the procedure below.
+
+1. In your AWS Console, navigate to **CloudFormation** -> **Create stack** -> **With new resources (standard)**
+
+
+2. Under **Specify template**, select **Upload a template file** and upload the 
+   `uptycs-ssm-codepipeline-build.yml` from the cloudformation folder, then click **Next**
+
+
+3. Provide a **Stack name** and update the **Parameters**  
+
 
 The CloudFormation template takes the following parameters
 
@@ -124,21 +141,6 @@ The CloudFormation template takes the following parameters
 | S3Prefix                  | Prefix for file path                                                                                                                                      |
 | S3CodeBucketKey           | Key of the S3 bucket with the initial commit of code                                                                                                      |
 
-- [AWS Console deployment](#aws-console-deployment)
-
-
-
-### AWS Console deployment
-To deploy this stack using the AWS console, follow the procedure below.
-
-1. In your AWS Console, navigate to **CloudFormation** -> **Create stack** -> **With new resources (standard)**
-
-
-2. Under **Specify template**, select **Upload a template file** and upload the 
-   `uptycs-ssm-codepipeline-build.yml` from the cloudformation folder, then click **Next**
-
-
-3. Provide a **Stack name** and update the **Parameters**  
 
 
 4. Select the regions where you would like the package deployed.  Either provide a list of 
