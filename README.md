@@ -176,9 +176,7 @@ successfully.  Confirm that the package has been shared with other accounts in y
 
 <img src='./images/distributor-package.png' width='600'>
 
-Package details
 
-<img src='./images/distributor-org-share.png' width='400'>
 
 
 In your AWS Console, navigate to a member account  **Systems Manager** -> **State Manager** -> **Shared by me
